@@ -20,7 +20,7 @@ load([d2,f2]);
 zipAccData     = zeros(s1/10,4); % take the mean of the 10 samples
 for i=1:s1/10
     zipAccData(i,1:3)=mean(data_xl((i-1)*10+1:i*10,1:3))/512;
-    zipAccData(i,4)  =mean(data_xl((i-1)*10+1:i*10,4));
+    % zipAccData(i,4)  =mean(data_xl((i-1)*10+1:i*10,4));
 end
 
 
@@ -60,118 +60,121 @@ e_cut=find(tExpand(:,2)==tEnd(2)&tExpand(:,3)==tEnd(3)&...
     tExpand(:,4)==tEnd(4)&tExpand(:,5)==tEnd(5)&tExpand(:,6)==tEnd(6));
 % [s_cut e_cut]=segment(tExpand,t_start,t_end);
 segementData=[zipAccData(s_cut:e_cut,:)];
-filename_mat='F:\Data\accData\saveData\120E—segment.mat';
+
+filename_mat= [d1 'saveAccData\' f1(1:4) '—segment.mat'];
+% 'F:\Data\accData\saveData\120E—segment.mat';
 save(filename_mat,"segementData")
 %acc_x = zipAccData(:,1);acc_y = zipAccData(:,2);acc_z = zipAccData(:,3);
 % save the time and acc data into a file
-filename = 'F:\Data\accData\saveData\120E.csv';
+filename_csv = [d1 'saveAccData\' f1(1:4) '—.csv'];
+%'F:\Data\accData\saveData\120E.csv';
 % Nline=193681;mymatrix = table(time(1:Nline),acc_x(1:Nline),acc_y(1:Nline),acc_z(1:Nline));
-mymatrix = table(time_text(1:end),zipAccData(:,1),zipAccData(:,2),zipAccData(:,3),zipAccData(:,4));
-writetable(mymatrix,filename);
+% mymatrix = table(time_text(1:end),zipAccData(:,1),zipAccData(:,2),zipAccData(:,3),zipAccData(:,4));
+% writetable(mymatrix,filename_csv);
 % xlswrite(mymatrix,filename)
 
 
 
 
-function timechange
-for j=1:s1/10
-     if rem(j,4)==1
-        tExpand(j,:) = t(round(j/4)+1,:);
-        t_s          = tExpand(j,end);
-        t_m          = tExpand(j,end-1);
-        t_h          = tExpand(j,end-2);
-        t_d          = tExpand(j,3);
-        t_M          = tExpand(j,2);
-        t_y          = tExpand(j,1);
-        if t_s<=56
-            % if second count less than 58, copy the first 5 collums ymdhm
-            tExpand(j+1,1:5) = tExpand(j,1:5);
-            tExpand(j+2,1:5) = tExpand(j,1:5);
-            tExpand(j+3,1:5) = tExpand(j,1:5);
-            % and add one sequencely,second +1
-            tExpand(j+1,end) = tExpand(j,end)+1;
-            tExpand(j+2,end) = tExpand(j,end)+2;
-            tExpand(j+3,end) = tExpand(j,end)+3;
-        elseif t_s==57
-             % if second count=57, copy the first 5 collums for
-             % j+1 
-            tExpand(j+1,1:5) = tExpand(j,1:5);
-            tExpand(j+1,end) = 58;
-            % for j+2/j=3 rows,the last one should be 0/1,the end-1 will
-            % increase one, and 1:4 will be the same as row j
-            % j+2
-            tExpand(j+2,1:5)   = tExpand(j,1:5);
-            tExpand(j+2,end)   = 59;
-            % j+3
-            tExpand(j+3,end)   = 0;
-            if  t_m<=58
-                tExpand(j+3,5)     = tExpand(j,5)+1;
-                tExpand(j+3,1:4)   = tExpand(j,1:4);
-            elseif t_m==59
-                tExpand(j+3,5)     = 0;
-                if t_h<23
-                    tExpand(j+3,4)   = tExpand(j,4)+1;
-                    tExpand(j+3,1:3) = tExpand(j,1:3);
-                else
-                    tExpand(j+3,4)   = 0;
-                    tExpand(j+3,3)   = tExpand(j,3)+1;%%%这里涉及到天增加1的时候，概率较低暂不考虑
-                    tExpand(j+3,1:2) = tExpand(j,1:2);
-                end
-            end         
-        elseif t_s==58
-            tExpand(j+1,1:5)   = tExpand(j,1:5); 
-            tExpand(j+1,end)   = t_s+1;
-            tExpand(j+2,end)   = 0;
-            tExpand(j+3,end)   = 1;
-       
-            if t_m<=58
-                tExpand(j+2,1:4) = tExpand(j,1:4)+1;
-                tExpand(j+3,1:4) = tExpand(j,1:4)+1;
-                tExpand(j+2,5)   = tExpand(j,5)+1;
-                tExpand(j+3,5)   = tExpand(j,5)+1;
-            else
-                tExpand(j+2:j+3,5)   = 0;
-                if t_h<23
-                    tExpand(j+2,4)   = tExpand(j,4)+1;
-                    tExpand(j+3,4)   = tExpand(j,4)+1;
-                    tExpand(j+2,1:3) = tExpand(j,1:3);
-                    tExpand(j+3,1:3) = tExpand(j,1:3);
-                else
-                    tExpand(j+2,4)   = 0;
-                    tExpand(j+3,4)   = 0;
-                    tExpand(j+2,3)   = tExpand(j,3)+1;%%%这里涉及到天增加1的时候，概率较低暂不考虑
-                    tExpand(j+3,3)   = tExpand(j,3)+1;
-                    tExpand(j+2,1:2) = tExpand(j,1:2);
-                     tExpand(j+3,1:2)= tExpand(j,1:2);
-                end
-            end
-
-        elseif t_s==59
-            tExpand(j+1,6)     = 0;
-            tExpand(j+2,6)     = 1;
-            tExpand(j+3,6)     = 2;
-             if t_m<=58
-                 tExpand(j+1,5)     = tExpand(j,5)+1;
-                 tExpand(j+2,5)     = tExpand(j,5)+1;
-                 tExpand(j+3,5)     = tExpand(j,5)+1;
-                 tExpand(j+1,1:4)   = tExpand(j,1:4);
-                 tExpand(j+2,1:4)   = tExpand(j,1:4);
-                 tExpand(j+3,1:4)   = tExpand(j,1:4);
-            else
-                tExpand(j+1:j+3,5)   = 0;
-                if t_h<23
-                tExpand(j+2:j+3,4)   = tExpand(j,4)+1;
-                tExpand(j+2:j+3,1:3) = tExpand(j,1:3);
-                else
-                    tExpand(j+1:j+3,4)   = 0;
-                    tExpand(j+1:j+3,3)   = tExpand(j,3)+1;
-
-                end
-            end
-        end
-     end
-end
-end
+% function timechange
+% for j=1:s1/10
+%      if rem(j,4)==1
+%         tExpand(j,:) = t(round(j/4)+1,:);
+%         t_s          = tExpand(j,end);
+%         t_m          = tExpand(j,end-1);
+%         t_h          = tExpand(j,end-2);
+%         t_d          = tExpand(j,3);
+%         t_M          = tExpand(j,2);
+%         t_y          = tExpand(j,1);
+%         if t_s<=56
+%             % if second count less than 58, copy the first 5 collums ymdhm
+%             tExpand(j+1,1:5) = tExpand(j,1:5);
+%             tExpand(j+2,1:5) = tExpand(j,1:5);
+%             tExpand(j+3,1:5) = tExpand(j,1:5);
+%             % and add one sequencely,second +1
+%             tExpand(j+1,end) = tExpand(j,end)+1;
+%             tExpand(j+2,end) = tExpand(j,end)+2;
+%             tExpand(j+3,end) = tExpand(j,end)+3;
+%         elseif t_s==57
+%              % if second count=57, copy the first 5 collums for
+%              % j+1 
+%             tExpand(j+1,1:5) = tExpand(j,1:5);
+%             tExpand(j+1,end) = 58;
+%             % for j+2/j=3 rows,the last one should be 0/1,the end-1 will
+%             % increase one, and 1:4 will be the same as row j
+%             % j+2
+%             tExpand(j+2,1:5)   = tExpand(j,1:5);
+%             tExpand(j+2,end)   = 59;
+%             % j+3
+%             tExpand(j+3,end)   = 0;
+%             if  t_m<=58
+%                 tExpand(j+3,5)     = tExpand(j,5)+1;
+%                 tExpand(j+3,1:4)   = tExpand(j,1:4);
+%             elseif t_m==59
+%                 tExpand(j+3,5)     = 0;
+%                 if t_h<23
+%                     tExpand(j+3,4)   = tExpand(j,4)+1;
+%                     tExpand(j+3,1:3) = tExpand(j,1:3);
+%                 else
+%                     tExpand(j+3,4)   = 0;
+%                     tExpand(j+3,3)   = tExpand(j,3)+1;%%%这里涉及到天增加1的时候，概率较低暂不考虑
+%                     tExpand(j+3,1:2) = tExpand(j,1:2);
+%                 end
+%             end         
+%         elseif t_s==58
+%             tExpand(j+1,1:5)   = tExpand(j,1:5); 
+%             tExpand(j+1,end)   = t_s+1;
+%             tExpand(j+2,end)   = 0;
+%             tExpand(j+3,end)   = 1;
+% 
+%             if t_m<=58
+%                 tExpand(j+2,1:4) = tExpand(j,1:4)+1;
+%                 tExpand(j+3,1:4) = tExpand(j,1:4)+1;
+%                 tExpand(j+2,5)   = tExpand(j,5)+1;
+%                 tExpand(j+3,5)   = tExpand(j,5)+1;
+%             else
+%                 tExpand(j+2:j+3,5)   = 0;
+%                 if t_h<23
+%                     tExpand(j+2,4)   = tExpand(j,4)+1;
+%                     tExpand(j+3,4)   = tExpand(j,4)+1;
+%                     tExpand(j+2,1:3) = tExpand(j,1:3);
+%                     tExpand(j+3,1:3) = tExpand(j,1:3);
+%                 else
+%                     tExpand(j+2,4)   = 0;
+%                     tExpand(j+3,4)   = 0;
+%                     tExpand(j+2,3)   = tExpand(j,3)+1;%%%这里涉及到天增加1的时候，概率较低暂不考虑
+%                     tExpand(j+3,3)   = tExpand(j,3)+1;
+%                     tExpand(j+2,1:2) = tExpand(j,1:2);
+%                      tExpand(j+3,1:2)= tExpand(j,1:2);
+%                 end
+%             end
+% 
+%         elseif t_s==59
+%             tExpand(j+1,6)     = 0;
+%             tExpand(j+2,6)     = 1;
+%             tExpand(j+3,6)     = 2;
+%              if t_m<=58
+%                  tExpand(j+1,5)     = tExpand(j,5)+1;
+%                  tExpand(j+2,5)     = tExpand(j,5)+1;
+%                  tExpand(j+3,5)     = tExpand(j,5)+1;
+%                  tExpand(j+1,1:4)   = tExpand(j,1:4);
+%                  tExpand(j+2,1:4)   = tExpand(j,1:4);
+%                  tExpand(j+3,1:4)   = tExpand(j,1:4);
+%             else
+%                 tExpand(j+1:j+3,5)   = 0;
+%                 if t_h<23
+%                 tExpand(j+2:j+3,4)   = tExpand(j,4)+1;
+%                 tExpand(j+2:j+3,1:3) = tExpand(j,1:3);
+%                 else
+%                     tExpand(j+1:j+3,4)   = 0;
+%                     tExpand(j+1:j+3,3)   = tExpand(j,3)+1;
+% 
+%                 end
+%             end
+%         end
+%      end
+% end
+% end
 % function [s,e]=segment(t)
 % 
 % 
