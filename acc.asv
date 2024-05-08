@@ -1,11 +1,106 @@
 %step 0 load in the related data files
 clear;
-[f1,d1] = uigetfile('*.mat','Select Accelerometer Data MAT File:');
-load([d1,f1]);
-[f2,d2] = uigetfile('*.mat','Select Accelerometer Data MAT File:');
-load([d2,f2]);
+%  load data
+[f1,d1] = uigetfile('*.mat','Select Accelerometer Data MAT File:');load([d1,f1]);
+[f2,d2] = uigetfile('*.mat','Select Accelerometer Data MAT File:');load([d2,f2]);
 % load('F:\Data\accData\120E-data_1.mat');
 % load('F:\Data\accData\120E-ta_data.mat');
+clear   data_ba data_adc clock_hour dt_ba dt_adc  dt_xl
+rawAcc  = dataT_xl;
+tAcc    = info_xl.dateTime;
+t1      = info_xl.dateTime(1); 
+t2      = info_xl.dateTime(end)+seconds(3);
+if length(rawAcc)==length(tAcc)*40
+    disp('the data is ok for continue analysis')
+else
+    disp('check the raw data')
+    return;
+end
+clear data_xl dataT_xl  info_xl
+% 原始的time中有很多错误，只取第一行数据，后边是每一行人工加了1秒钟,make a timeline
+
+tAcc    = t1:seconds(1):t2;
+tAcc    = tAcc';
+
+% set TOI 设置感兴趣的时间，Y/M/D/H/M/S
+tSta   = [2021 4 13 18 0   0]; datetSta = datetime(tSta);
+tEnd   = [2021 4 13 23 0   0]; datetEnd = datetime(tEnd);
+cut    = datefind([datetSta datetEnd], tAcc);
+tspan  = tEnd-tSta;
+tspan  = tspan(3)*24*60*60+tspan(4)*60*60+tspan(5)*60+tspan(6);%以秒为单位
+tpart  = tAcc(cut(1):cut(2));
+partAcc= rawAcc((cut(1)-1)*10+1:cut(2)*10,:);% 采样率为10HZ
+staticAcc =zeros(length(partAcc),4);
+for i=1:4
+    if i<4
+        partAcc(:,i)  = partAcc(:,i)/512;
+        staticAcc(:,i)= smooth(partAcc(:,i),30);% 5 second
+    else
+        staticAcc(:,i)=partAcc(:,i);
+    end
+end
+dynamicAcc = partAcc-staticAcc;
+
+% tm=length(partAcc)/600;% in minutes
+figure
+subplot 311
+plot(partAcc(:,1),'r');hold on;grid on
+plot(partAcc(:,2),'g');
+plot(partAcc(:,3),'b');
+title('Raw ACC');
+
+subplot 312
+plot(staticAcc(:,1),'r');hold on;grid on
+plot(staticAcc(:,2),'g');
+plot(staticAcc(:,3),'b');
+title('Static Acc')
+
+subplot 313
+plot(dynamicAcc(:,1),'r');hold on;grid on
+plot(dynamicAcc(:,2),'g');
+plot(dynamicAcc(:,3),'b');
+title('Dynamic Acc')
+
+% set all the parameters for svm
+veDBA = zeros(N,1);
+normStatic=zeros(N,1);
+pitch = zeros(N,1);
+roll  = zeros(N,1);
+yaw   = zeros(N,1);  
+for i=1:N
+    veDBA(i) = norm(dynamicAcc(i,1:3));
+    normStatic(i)=norm(staticAcc(i,1:3));
+    pitch(i) = asind(staticAcc(i,1)/normStatic(i));
+    roll(i)  = asind(staticAcc(i,2)/normStatic(i));
+    yaw(i)   = asind(staticAcc(i,3)/normStatic(i));
+end 
+veDBAs       = smooth(veDBA,30);
+pDBA         = abs(dynamicAcc(:,1:3));
+ratioDBA     = pDBA./veDBA;
+
+N=length(partAcc);
+fs=1;
+t=1:1:N;
+fft_accx=fft(acc_x);
+fft_accy=fft(acc_y);
+fft_accz=fft(acc_z);
+
+% fft_acc=fft_acc(1:N/2+1);
+psd_accx=(1/(fs*N))*abs(fft_accx).^2;
+psd_accy=(1/(fs*N))*abs(fft_accy).^2;
+psd_accz=(1/(fs*N))*abs(fft_accz).^2;
+
+% psd_acc(2:end-1)=2*psd_acc(2:end-1);
+freq=0:fs/N:fs-1;
+plot(freq,pow2db(psd_accy));
+grid on
+title("Periodogram Using FFT");
+xlabel("Frequency (Hz)")
+ylabel("Power/Frequency (dB/Hz)")
+
+
+
+
 
 % ss=cell(225890,1);
 % for i=1:225891
@@ -16,18 +111,8 @@ load([d2,f2]);
 %     end
 % end
 % step 1,compress the data into 1 HZ sample rate       % sample rate=10HZ
-[s1,~]         = size(data_xl);
-zipAccData     = zeros(s1/10,4); % take the mean of the 10 samples
-for i=1:s1/10
-    zipAccData(i,1:3)=mean(data_xl((i-1)*10+1:i*10,1:3))/512;
-    zipAccData(i,4)  =mean(data_xl((i-1)*10+1:i*10,4));
-end
-
-
-% get the original time sequence from the dt_xl,and put the empty time with
-% zeros
-
-tExpand=zeros(s1/10,6);
+% [s1,~]         = size(data_xl);
+% tExpand=zeros(s1/10,6);
 % 取原数据中给出的每隔4秒1次的数据，原数据会有误差
 % for j=1:s1/10
 %      if rem(j,4)==1
@@ -42,34 +127,31 @@ tExpand=zeros(s1/10,6);
 %         tExpand(j+3,:)=[year(t4) month(t4) day(t4) hour(t4) minute(t4) second(t4)];
 %      end
 % end
-% 只取第一行数据，后边是每一行人工加了1秒钟
-tExpand(1,:) = dt_xl(1,:);
-tbegin       = datetime(tExpand(1,:),'InputFormat','yyyy-MM-dd hh:mm:ss');
-for  j   = 2:s1/10
-     tse = tbegin+seconds(j-1);
-     tExpand(j,:)=[year(tse) month(tse) day(tse) hour(tse) minute(tse) second(tse)];
-end
-time_text          = datetime(tExpand,'InputFormat','yyyy-MM-dd hh:mm:ss');
-time_text.TimeZone = "local";% t=posixtime(time);
-tStart=[2021 4 13 19 0 0];
-tEnd  =[2021 4 14  0 0 0];
 
-s_cut=find(tExpand(:,2)==tStart(2)&tExpand(:,3)==tStart(3)&...
-    tExpand(:,4)==tStart(4)&tExpand(:,5)==tStart(5)&tExpand(:,6)==tStart(6));
-e_cut=find(tExpand(:,2)==tEnd(2)&tExpand(:,3)==tEnd(3)&...
-    tExpand(:,4)==tEnd(4)&tExpand(:,5)==tEnd(5)&tExpand(:,6)==tEnd(6));
-% [s_cut e_cut]=segment(tExpand,t_start,t_end);
-segementData=[zipAccData(s_cut:e_cut,:)];
 
-filename_mat=[]
-'F:\Data\accData\saveData\120E—segment.mat';
+
+
+
+% get the original time sequence from the dt_xl,and put the empty time with
+% zeros
+
+
+
+pDBA         = abs(segementData);
+
+
+
+
+filename_mat= [d1 'saveAccData\' f1(1:4) '—segment.mat'];
+% 'F:\Data\accData\saveData\120E—segment.mat';
 save(filename_mat,"segementData")
 %acc_x = zipAccData(:,1);acc_y = zipAccData(:,2);acc_z = zipAccData(:,3);
 % save the time and acc data into a file
-filename_csv = 'F:\Data\accData\saveData\120E.csv';
+filename_csv = [d1 'saveAccData\' f1(1:4) '—.csv'];
+%'F:\Data\accData\saveData\120E.csv';
 % Nline=193681;mymatrix = table(time(1:Nline),acc_x(1:Nline),acc_y(1:Nline),acc_z(1:Nline));
-mymatrix = table(time_text(1:end),zipAccData(:,1),zipAccData(:,2),zipAccData(:,3),zipAccData(:,4));
-writetable(mymatrix,filename_csv);
+% mymatrix = table(time_text(1:end),zipAccData(:,1),zipAccData(:,2),zipAccData(:,3),zipAccData(:,4));
+% writetable(mymatrix,filename_csv);
 % xlswrite(mymatrix,filename)
 
 
