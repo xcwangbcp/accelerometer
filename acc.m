@@ -1,12 +1,12 @@
 %step 0 load in the related data files
-clear;
+clear;close all 
 %  load data
 [f1,d1] = uigetfile('*.mat','Select Accelerometer Data MAT File:');load([d1,f1]);
 [f2,d2] = uigetfile('*.mat','Select Accelerometer Data MAT File:');load([d2,f2]);
 % load('F:\Data\accData\120E-data_1.mat');
 % load('F:\Data\accData\120E-ta_data.mat');
 clear   data_ba data_adc clock_hour dt_ba dt_adc  dt_xl
-rawAcc  = dataT_xl;
+rawAcc  = dataT_xl(:,1:3);
 tAcc    = info_xl.dateTime;
 t1      = info_xl.dateTime(1); 
 t2      = info_xl.dateTime(end)+seconds(3);
@@ -23,18 +23,18 @@ tAcc    = t1:seconds(1):t2;
 tAcc    = tAcc';
 
 % set TOI 设置感兴趣的时间，Y/M/D/H/M/S
-tSta   = [2021 4 13 18 0   0]; datetSta = datetime(tSta);
-tEnd   = [2021 4 13 23 0   0]; datetEnd = datetime(tEnd);
+tSta   = [2021 4 13 18  0 0]; datetSta = datetime(tSta);
+tEnd   = [2021 4 13 20  0 0]; datetEnd = datetime(tEnd);
 cut    = datefind([datetSta datetEnd], tAcc);
 tspan  = tEnd-tSta;
 tspan  = tspan(3)*24*60*60+tspan(4)*60*60+tspan(5)*60+tspan(6);%以秒为单位
 tpart  = tAcc(cut(1):cut(2));
-partAcc= rawAcc((cut(1)-1)*10+1:cut(2)*10,:);% 采样率为10HZ
-staticAcc =zeros(length(partAcc),4);
-for i=1:4
+partAcc= rawAcc((cut(1)-1)*10+1:(cut(2)-1)*10,:);% 采样率为10HZ
+staticAcc =zeros(length(partAcc),3);
+for i=1:3
     if i<4
         partAcc(:,i)  = partAcc(:,i)/512;
-        staticAcc(:,i)= smooth(partAcc(:,i),30);% 5 second
+        staticAcc(:,i)= smooth(partAcc(:,i),30);% 3 second
     else
         staticAcc(:,i)=partAcc(:,i);
     end
@@ -78,30 +78,124 @@ end
 veDBAs       = smooth(veDBA,30);
 pDBA         = abs(dynamicAcc(:,1:3));
 ratioDBA     = pDBA./veDBA;
-
-PSD=zeros(N,3);
+% downsample to 1HZ
 fs           = 10;
-t            = 1:1:N;
-fft_accx     = fft(dynamicAcc(:,1));
-fft_accy     = fft(dynamicAcc(:,2));
-fft_accz     = fft(dynamicAcc(:,3));
-
-% fft_acc=fft_acc(1:N/2+1);
-PSD(:,1)     = (1/(fs*N))*abs(fft_accx).^2;
-PSD(:,2)     = (1/(fs*N))*abs(fft_accy).^2;
-PSD(:,3)     = (1/(fs*N))*abs(fft_accz).^2;
-
-% psd_acc(2:end-1)=2*psd_acc(2:end-1);
-freq   = 0:fs/N:fs;
-freq   = freq(1:end-1);
-plot(freq,(PSD(:,3)));
-grid on
-title("Periodogram Using FFT");
-xlabel("Frequency (Hz)")
-ylabel("Power/Frequency (dB/Hz)")
 
 
 
+
+% split the data into 3 seconds
+% segementDynaAcc=zeros(N/fs-2,3);
+PSD1          = nan(N/fs,3);
+freq1         = nan(N/fs,3);
+PSD2          = nan(N/fs,3);
+freq2         = nan(N/fs,3);
+for  j=1:N/fs-2
+    segementDynaAcc=dynamicAcc((j-1)*10+1:(j+2)*10,1:3);
+    M            =length(segementDynaAcc);
+    t            = 0.1:1/fs:M/10;% in seconds
+    freq         = 0:fs/M:fs/2;
+    fft_accx     = fft(segementDynaAcc(:,1));
+    fft_accx     = fft_accx(1:M/2+1);
+
+    fft_accy     = fft(segementDynaAcc(:,2));
+    fft_accy     = fft_accy(1:M/2+1);
+
+    fft_accz     = fft(segementDynaAcc(:,3));
+    fft_accz     = fft_accz(1:M/2+1);
+
+    psdx         = (1/(fs*N))*abs(fft_accx).^2;
+    psdx(2:end-1)= 2*psdx(2:end-1);
+    psdx_sort    = sort(psdx,'descend');
+    PSD1(j,1)    = max(psdx);
+    if isempty(PSD1(j,1))
+        continue;
+    end
+    freq1(j,1)   = freq((psdx==max(psdx)));
+    
+    PSD2(j,1)    = psdx_sort(2);
+    temp         = find(psdz==PSD2(j,1));
+    freq2(j,2)   = freq(temp(1));
+    
+
+
+    psdy         = (1/(fs*N))*abs(fft_accy).^2;
+    psdy(2:end-1)= 2*psdy(2:end-1);
+    psdy_sort    = sort(psdy,'descend');
+    PSD1(j,2)    = max(psdy);
+    if isempty(PSD1(j,2))
+        continue;
+    end
+    freq1(j,2)   = freq(psdy==max(psdy));
+    PSD2(j,2)    = psdy_sort(2);
+    temp         = find(psdz==PSD2(j,2));
+    freq2(j,2)   = freq(temp(1));
+
+
+    psdz         = (1/(fs*N))*abs(fft_accz).^2;
+    psdz(2:end-1)= 2*psdz(2:end-1);
+    psdz_sort    = sort(psdz,'descend');
+    PSD1(j,3)    = max(psdz);
+    if isempty(PSD1(j,3))
+        continue;
+    end
+    freq1(j,3)   = freq(psdz==max(psdz));
+    PSD2(j,3)    = psdz_sort(2);
+    temp         = find(psdz==PSD2(j,3));
+    freq2(j,3)   = freq(temp(1));
+   
+end
+monkeyID={'120A','120B','120C','120D','120E','120F','1209','1211','1212','1213','1214','1215'};
+
+switch f1(1:4)
+    case {'1209','1215','120D'}
+        PDtype='control';
+    case {'1214','120A','120B'}
+        PDtype='nose';
+    case {'1212','1211','120E'}
+        PDtype='gas';
+    case {'120C','120F','1213'}
+        PDtype='stri';
+end
+PDtype=repmat(PDtype,N/fs,1);
+
+varNames = {'staticAcc','dynamicAcc','veDBA','veDBAs', 'pitch','roll',...
+    'pDBAx','pDBAy','pDBAz','ratioDBAx','ratioDBAy','ratioDBAz'...
+   ,'PSD1x','PSD1y','PSD1z','freq1x','freq1y','freq1z','PSD2x',...
+   'PSD2y','PSD2z','freq2x','freq2y','freq2z','PDtype'};
+% averages = arrayfun(@(i) mean(staticAcc((i-1)*10 + 1:i*10)), 1:ceil(length(staticAcc)/10));
+metrix=[staticAcc dynamicAcc veDBA veDBAs pitch roll pDBA ratioDBA];
+[~,colum]=size(metrix);
+newMetrics=zeros(N/fs,colum);
+for k=1:fs:N
+    newMetrics((k-1)/fs+1,:)=mean(metrix(k:k+9,:));
+end
+staticAcc  = newMetrics(:,1:3);
+dynamicAcc = newMetrics(:,4:6);
+veDBA      = newMetrics(:,7);
+veDBAs     = newMetrics(:,8);
+pitch      = newMetrics(:,9);
+roll       = newMetrics(:,10);
+pDBA       = newMetrics(:,11:13);
+ratioDBA   = newMetrics(:,14:16);
+
+T = table(staticAcc,dynamicAcc,veDBA,veDBAs,pitch,roll,pDBA,ratioDBA,PSD1,freq1,PSD2,freq2,PDtype);
+
+filename_mat= [d1 'saveAccData\' f1(1:4) '.mat'];
+save(filename_mat,"T")
+% get the original time sequence from the dt_xl,and put the empty time with
+
+
+% % 'F:\Data\accData\saveData\120E—segment.mat';
+% save(filename_mat,"segementData")
+% %acc_x = zipAccData(:,1);acc_y = zipAccData(:,2);acc_z = zipAccData(:,3);
+% % save the time and acc data into a file
+% filename_csv = [d1 'saveAccData\' f1(1:4) '—.csv'];
+% %'F:\Data\accData\saveData\120E.csv';
+% % Nline=193681;mymatrix = table(time(1:Nline),acc_x(1:Nline),acc_y(1:Nline),acc_z(1:Nline));
+% % mymatrix = table(time_text(1:end),zipAccData(:,1),zipAccData(:,2),zipAccData(:,3),zipAccData(:,4));
+% % writetable(mymatrix,filename_csv);
+% % xlswrite(mymatrix,filename)
 
 
 % ss=cell(225890,1);
@@ -134,30 +228,12 @@ ylabel("Power/Frequency (dB/Hz)")
 
 
 
-% get the original time sequence from the dt_xl,and put the empty time with
-% zeros
-
-
-
-pDBA         = abs(segementData);
-
-
-
-
-filename_mat= [d1 'saveAccData\' f1(1:4) '—segment.mat'];
-% 'F:\Data\accData\saveData\120E—segment.mat';
-save(filename_mat,"segementData")
-%acc_x = zipAccData(:,1);acc_y = zipAccData(:,2);acc_z = zipAccData(:,3);
-% save the time and acc data into a file
-filename_csv = [d1 'saveAccData\' f1(1:4) '—.csv'];
-%'F:\Data\accData\saveData\120E.csv';
-% Nline=193681;mymatrix = table(time(1:Nline),acc_x(1:Nline),acc_y(1:Nline),acc_z(1:Nline));
-% mymatrix = table(time_text(1:end),zipAccData(:,1),zipAccData(:,2),zipAccData(:,3),zipAccData(:,4));
-% writetable(mymatrix,filename_csv);
-% xlswrite(mymatrix,filename)
-
-
-
+% freq   = freq(1:end-1);
+% plot(freq,(PSD1(:,3)));
+% grid on
+% title("Periodogram Using FFT");
+% xlabel("Frequency (Hz)")
+% ylabel("Power/Frequency (dB/Hz)")
 
 % function timechange
 % for j=1:s1/10
