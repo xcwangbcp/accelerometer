@@ -1,6 +1,10 @@
 %step 0 load in the related data files
-clear;close all 
-%  load data
+clear;clc;close;
+
+train=0;
+% catalldata(train)
+
+close all %  load data
 [f1,d1] = uigetfile('*.mat','Select Accelerometer Data MAT File:');load([d1,f1]);
 [f2,d2] = uigetfile('*.mat','Select Accelerometer Data MAT File:');load([d2,f2]);
 % load('F:\Data\accData\120E-data_1.mat');
@@ -23,8 +27,8 @@ tAcc    = t1:seconds(1):t2;
 tAcc    = tAcc';
 
 % set TOI 设置感兴趣的时间，Y/M/D/H/M/S
-tSta   = [2021 4 13 18  0 0]; datetSta = datetime(tSta);
-tEnd   = [2021 4 13 20  0 0]; datetEnd = datetime(tEnd);
+tSta   = [2021 4 15 18  0 0]; datetSta = datetime(tSta);
+tEnd   = [2021 4 15 19  0 0]; datetEnd = datetime(tEnd);
 cut    = datefind([datetSta datetEnd], tAcc);
 tspan  = tEnd-tSta;
 tspan  = tspan(3)*24*60*60+tspan(4)*60*60+tspan(5)*60+tspan(6);%以秒为单位
@@ -93,6 +97,7 @@ freq2         = nan(N/fs,3);
 for  j=1:N/fs-2
     segementDynaAcc=dynamicAcc((j-1)*10+1:(j+2)*10,1:3);
     M            =length(segementDynaAcc);
+    segementDynaAcc(isnan(segementDynaAcc))=0;
     t            = 0.1:1/fs:M/10;% in seconds
     freq         = 0:fs/M:fs/2;
     fft_accx     = fft(segementDynaAcc(:,1));
@@ -108,14 +113,13 @@ for  j=1:N/fs-2
     psdx(2:end-1)= 2*psdx(2:end-1);
     psdx_sort    = sort(psdx,'descend');
     PSD1(j,1)    = max(psdx);
-    if isempty(PSD1(j,1))
+    if isempty(PSD1(j,1))|PSD1(j,1)==0
         continue;
     end
     freq1(j,1)   = freq((psdx==max(psdx)));
-    
     PSD2(j,1)    = psdx_sort(2);
-    temp         = find(psdz==PSD2(j,1));
-    freq2(j,2)   = freq(temp(1));
+    temp         = find(psdx==PSD2(j,1));
+    freq2(j,1)   = freq(temp(1));
     
 
 
@@ -123,12 +127,12 @@ for  j=1:N/fs-2
     psdy(2:end-1)= 2*psdy(2:end-1);
     psdy_sort    = sort(psdy,'descend');
     PSD1(j,2)    = max(psdy);
-    if isempty(PSD1(j,2))
+    if isempty(PSD1(j,2))|PSD1(j,2)==0
         continue;
     end
     freq1(j,2)   = freq(psdy==max(psdy));
     PSD2(j,2)    = psdy_sort(2);
-    temp         = find(psdz==PSD2(j,2));
+    temp         = find(psdy==PSD2(j,2));
     freq2(j,2)   = freq(temp(1));
 
 
@@ -136,7 +140,7 @@ for  j=1:N/fs-2
     psdz(2:end-1)= 2*psdz(2:end-1);
     psdz_sort    = sort(psdz,'descend');
     PSD1(j,3)    = max(psdz);
-    if isempty(PSD1(j,3))
+    if isempty(PSD1(j,3))|PSD1(j,3)==0
         continue;
     end
     freq1(j,3)   = freq(psdz==max(psdz));
@@ -159,10 +163,10 @@ switch f1(1:4)
 end
 PDtype=repmat(PDtype,N/fs,1);
 
-varNames = {'staticAcc','dynamicAcc','veDBA','veDBAs', 'pitch','roll',...
-    'pDBAx','pDBAy','pDBAz','ratioDBAx','ratioDBAy','ratioDBAz'...
-   ,'PSD1x','PSD1y','PSD1z','freq1x','freq1y','freq1z','PSD2x',...
-   'PSD2y','PSD2z','freq2x','freq2y','freq2z','PDtype'};
+% varNames = {'staticAcc','dynamicAcc','veDBA','veDBAs', 'pitch','roll',...
+%     'pDBAx','pDBAy','pDBAz','ratioDBAx','ratioDBAy','ratioDBAz'...
+%    ,'PSD1x','PSD1y','PSD1z','freq1x','freq1y','freq1z','PSD2x',...
+%    'PSD2y','PSD2z','freq2x','freq2y','freq2z','PDtype'};
 % averages = arrayfun(@(i) mean(staticAcc((i-1)*10 + 1:i*10)), 1:ceil(length(staticAcc)/10));
 metrix=[staticAcc dynamicAcc veDBA veDBAs pitch roll pDBA ratioDBA];
 [~,colum]=size(metrix);
@@ -178,11 +182,47 @@ pitch      = newMetrics(:,9);
 roll       = newMetrics(:,10);
 pDBA       = newMetrics(:,11:13);
 ratioDBA   = newMetrics(:,14:16);
+if train==1
+    T = table(staticAcc,dynamicAcc,veDBA,veDBAs,pitch,roll,pDBA,ratioDBA,PSD1,freq1,PSD2,freq2,PDtype);
+    filename_mat= [d1 'saveAccData\' f1(1:4) '.mat'];
 
-T = table(staticAcc,dynamicAcc,veDBA,veDBAs,pitch,roll,pDBA,ratioDBA,PSD1,freq1,PSD2,freq2,PDtype);
+    % t= [staticAcc,dynamicAcc,veDBA,veDBAs,pitch,roll,pDBA,ratioDBA,PSD1,freq1,PSD2,freq2,PDtype];
+else
+    T = table(staticAcc,dynamicAcc,veDBA,veDBAs,pitch,roll,pDBA,ratioDBA,PSD1,freq1,PSD2,freq2);
+    filename_mat= [d1 'saveAccData\' f1(1:4) 'test.mat'];
 
-filename_mat= [d1 'saveAccData\' f1(1:4) '.mat'];
+end
 save(filename_mat,"T")
+
+
+
+function catalldata( train)
+list=ls;list=list(3:end,:);l=length(list);
+data=[];
+type = {};
+for j=1:l
+    name=list(j,:);
+    monkeyAcc=load(list(j,:));
+    % [r,c]=size(monkeyAcc.T)
+    tmp1=table2array(monkeyAcc.T(:,1:end-1));
+    tmp2=table2cell(monkeyAcc.T(:,end));
+    type=[type;tmp2];
+    data=[data;tmp1];
+    [rt,ct]=size(data);
+end
+% [rt,ct]=size(data);
+
+staticAcc=data(:,1:3);dynamicAcc=data(:,4:6);veDBA=data(:,7);veDBAs=data(:,8);
+pitch=data(:,9);roll=data(:,10);pDBA=data(:,11:13);ratioDBA=data(:,14:16);
+PSD1=data(:,17:19);freq1=data(:,20:22);PSD2=data(:,23:25);freq2=data(:,26:28);
+if train == 1
+    PDtype=type;
+    C= table(staticAcc,dynamicAcc,veDBA,veDBAs,pitch,roll,pDBA,ratioDBA,PSD1,freq1,PSD2,freq2,PDtype);
+else
+    C= table(staticAcc,dynamicAcc,veDBA,veDBAs,pitch,roll,pDBA,ratioDBA,PSD1,freq1,PSD2,freq2);
+end
+save('alldata',"C")
+end
 % get the original time sequence from the dt_xl,and put the empty time with
 
 
